@@ -7,25 +7,35 @@
 
 import SimpleNetworking
 
-class AuthedNetworkManager<Token: AuthToken> {
-    let networkManager: SimpleNetworkingManager
-    private let authTask: PatientTask<Result<Token, AuthedNetworkError>>
-    private var currentToken: Token?
-    
+public protocol AuthedNetworkManager<Token>: AnyObject {
+    associatedtype Token: AuthToken
+    var baseManager: NetworkManager { get }
+    var currentToken: Token? { get set }
+    var authTask: PatientTask<Result<Token, AuthedNetworkError>> { get }
+    init(baseManager: NetworkManager, currentToken: Token?, authTask: PatientTask<Result<Token, AuthedNetworkError>>)
+}
+
+public extension AuthedNetworkManager {
     init(
-        networkManager: SimpleNetworkingManager,
+        baseManager: NetworkManager,
         tokenRefreshReq: any NetworkRequest<Token>,
         currentToken: Token? = nil
     ) {
-        self.networkManager = networkManager
-        self.currentToken = currentToken
-        self.authTask = PatientTask {
-            await Self.refreshToken(tokenRefreshReq, networkManager)
-        }
+        self.init(baseManager: baseManager, currentToken: currentToken, authTask: PatientTask {
+            // TODO: Set current token here so it's not being set every
+            await Self.refreshToken(tokenRefreshReq, baseManager)
+        })
     }
     
     func update(authToken: Token) {
-        
+        // TODO: How to handle if ther's an inflight auth refresh
+        currentToken = authToken
+        updateKeychain(token: authToken)
+    }
+    
+    func unauthenticate() {
+        currentToken = nil
+        updateKeychain(token: nil)
     }
     
     /// - parameter forceFetchAuthToken: Forces the auth token to be fetched again even if the request does not require authentication
@@ -34,10 +44,10 @@ class AuthedNetworkManager<Token: AuthToken> {
         forceFetchAuthToken: Bool
     ) async throws(NetworkError) -> T {
         var authToken: String?
-        // if request.requiresAuth || forceFetchAuthToken {
-        //     authToken = try await authManager.getTokenString(fetchBeforeExpiry: forceFetchAuthToken)
-        // }
-        return try await networkManager.load(request, with: authToken)
+        if request.requiresAuth || forceFetchAuthToken {
+            authToken = await authTask.execute().value?.token
+        }
+        return try await baseManager.load(request, with: authToken)
     }
     
     /// - parameter forceFetchAuthTokenIfApplicable: Only forces the auth token to be fetched again if the request requires authentication
@@ -46,13 +56,15 @@ class AuthedNetworkManager<Token: AuthToken> {
         forceRefreshAuthTokenIfApplicable: Bool = false
     ) async throws(NetworkError) -> T {
         var authToken: String?
-        // if request.requiresAuth {
-        //     authToken = try await authManager.getTokenString(fetchBeforeExpiry: forceRefreshAuthTokenIfApplicable)
-        // }
-        return try await networkManager.load(request, with: authToken)
+        if request.requiresAuth {
+            authToken = await authTask.execute().value?.token
+        }
+        return try await baseManager.load(request, with: authToken)
     }
-    
-    private static func refreshToken(
+}
+
+private extension AuthedNetworkManager {
+    static func refreshToken(
         _ tokenRefreshReq: any NetworkRequest<Token>,
         _ networkManager: SimpleNetworkingManager
     ) async -> Result<Token, AuthedNetworkError> {
@@ -62,4 +74,12 @@ class AuthedNetworkManager<Token: AuthToken> {
             return .failure(.auth(error))
         }
     }
+    
+    func updateKeychain(token: Token?) {
+        // TODO: Add token to keychain (or some customizable storage - dependency injection)
+    }
+}
+
+extension Result {
+    var value: Success? { try? get() }
 }

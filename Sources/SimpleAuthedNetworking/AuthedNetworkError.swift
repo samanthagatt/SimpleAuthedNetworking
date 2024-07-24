@@ -7,7 +7,7 @@
 
 import SimpleNetworking
 
-enum AuthedNetworkError: Error {
+public enum AuthedNetworkError: Error {
     /// Error encounterd while authenticating
     case auth(NetworkError)
     /// Error encountered while performing main network request
