@@ -1,0 +1,15 @@
+{
+  "originHash" : "5d3564492448d536d2493f46800b54197cf6add3a4bb21932f53f2f2a7b12d8a",
+  "pins" : [
+    {
+      "identity" : "simplenetworking",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/samanthagatt/SimpleNetworking",
+      "state" : {
+        "revision" : "19b0c6f1a0637bb6c0ddcd2c3be5d60626845b74",
+        "version" : "0.1.0"
+      }
+    }
+  ],
+  "version" : 3
+}
